@@ -1,0 +1,3 @@
+# Loaded by Codex for trusted projects; host policy can override these defaults.
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"

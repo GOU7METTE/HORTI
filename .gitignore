@@ -218,3 +218,29 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# HORTI frontend, private inputs, and generated artifacts
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+.env.*
+!.env.example
+*.sqlite
+*.sqlite3
+*.sqlite3-*
+*.db
+*.db-*
+data/
+datasets/
+uploads/
+ml/models/*
+!ml/models/README.md
+*.pt
+*.pth
+*.onnx
+*.safetensors
+*.pem
+*.key
+.DS_Store
+Thumbs.db
