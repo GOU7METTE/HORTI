@@ -15,10 +15,17 @@ The current application provides a static landing page and a health-check API.
 
 ## Motivation
 
-Visual plant symptoms can be difficult to interpret, and models trained on curated images
-may struggle with field photographs. HORTI explores this problem as an educational tool
-while building practical skills in backend engineering, ML, API design, testing, and
-deployment. It is an undergraduate Computer Science portfolio project built incrementally.
+HORTI started from a personal connection to agriculture. My father works as an
+agricultural technician, so I grew up around his practical knowledge of crops, plant
+health, and the challenges faced in agriculture.
+
+As a Computer Science student, I wanted to connect his agricultural experience with
+what I am learning in software development and artificial intelligence. HORTI explores
+how computer vision and software could support plant-health monitoring and, eventually,
+other agricultural applications.
+
+The project gives me practical experience in machine learning, backend engineering,
+API design, testing, and deployment while working on a problem with personal meaning.
 
 ## Current Progress
 
