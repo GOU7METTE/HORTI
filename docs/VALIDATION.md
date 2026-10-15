@@ -30,6 +30,25 @@ Commands run from the repository root; UV_CACHE_DIR points to .cache/uv.
 
 ## Limitations and follow-up
 
+### Backend test follow-up (October 15, 2026)
+
+The developer reported that both existing API tests passed at 11:03
+(America/Toronto) on October 15, 2026, following the P0-06 validation instructions:
+
+```powershell
+uv run --project backend --locked pytest backend/tests -v
+```
+
+Reported result: **2 passed** (`test_health` and
+`test_cors_allows_only_configured_origin`). These tests use an in-process TestClient
+and injected test settings with `.env` loading disabled; they require no dataset,
+GPU, database, or running API server.
+
+This is a developer-reported run; the agent did not rerun pytest or inspect terminal
+output. Exact environment versions and the cause of the earlier Windows policy
+blocker were not supplied. The October 9 blocked run below remains a historical
+record; this report does not establish remote CI success or a Uvicorn startup check.
+
 ### Shared AI coding tools (October 9, 2026)
 
 Official documentation confirms native AGENTS.md support for Codex, Cursor CLI and

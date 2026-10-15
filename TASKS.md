@@ -24,7 +24,7 @@ No active claims. Add an entry with the fields above when starting an authorized
 | [x] | P0-03 | Configure Python/Node dependencies | P0 | P0-01 | Manifests and locks resolve; ML extra separate from default API install | Small |
 | [x] | P0-04 | Configure code quality | P0 | P0-03 | Ruff, ESLint and strict TypeScript commands defined and pass locally | Small |
 | [x] | P0-05 | Configure environment and Git hygiene | P0 | P0-01 | Root .env loader documented; example safe; data/secrets/builds ignored | Small |
-| [ ] | P0-06 | Validate initial test infrastructure | P0 | P0-03 | pytest runs isolated API tests without data/GPU/services; infrastructure created, local runtime blocked by Windows policy | Small |
+| [x] | P0-06 | Validate initial test infrastructure | P0 | P0-03 | pytest runs isolated API tests without data/GPU/services; infrastructure created, local runtime blocked by Windows policy | Small |
 | [x] | P0-07 | Define GitHub Actions checks | P0 | P0-04, P0-06 | Minimal workflow includes locked installs, lint, types, tests and build | Small |
 | [ ] | P0-08 | Verify checks on GitHub | P0 | P0-07 | Workflow succeeds on push/PR; repository branch rules considered | Small |
 | [ ] | P0-09 | Choose project license | P1 | P0-02 | Owner explicitly chooses; LICENSE and README updated consistently | Small |
