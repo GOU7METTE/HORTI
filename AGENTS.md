@@ -19,8 +19,12 @@ Python 3.12, FastAPI, Pydantic, Uvicorn, SQLAlchemy, Alembic, SQLite locally and
 later; optional PyTorch, Torchvision, Pillow, scikit-learn. Next.js App Router, strict
 TypeScript, Tailwind CSS. uv, pytest, Ruff, ESLint, GitHub Actions. See
 docs/ARCHITECTURE.md. HTTP routes delegate business logic to services. Offline training
-produces versioned artifacts; the API performs inference only. Mobile clients will use
-the same versioned REST API. No database or inference pipeline exists yet.
+produces versioned artifacts; the API performs inference only. The final product is a mobile
+plant-health app, initially for Android and Google Play;
+iOS and the mobile framework remain undecided. Next.js is an intermediate prediction-flow
+prototype; web polish is not a prerequisite for mobile development. FastAPI will validate
+images and run inference through the same versioned REST API. Accounts, history, Supabase
+and retained photos remain deferred. No database or inference pipeline exists yet.
 
 ## Workflow
 
