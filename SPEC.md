@@ -4,24 +4,29 @@
 
 This document defines planned behavior unless explicitly described as implemented.
 The foundation implements GET /health, validated environment settings, an origin allowlist,
-tests, and a static frontend landing page. No uploads, model, database tables, accounts,
-history, or deployment exist. MVP scope: anonymous, single-image classification for a
-small documented crop/class set, with reviewed disease information. Crop monitoring is
-a future goal, not an MVP capability.
+tests, and a static frontend landing page. A contract-only POST /api/v1/predictions
+requires an image file and returns 503; image validation and inference are not implemented.
+No model, database tables, accounts, history, or deployment exist. MVP scope: anonymous, single-image classification for a
+small documented crop/class set, with reviewed disease information. The final product is
+a mobile plant-health app; Android and Google Play are the initial release target. iOS
+support is a future decision and mobile framework selection remains open. Next.js is an
+intermediate prototype for validating the prediction flow, not the final product; a completed
+web prototype is not required before mobile development. Accounts, history, Supabase
+and retained photos remain deferred. Crop monitoring is a future goal, not an MVP capability.
 
 ## Functional requirements
 
 | ID | Requirement |
 | --- | --- |
-| FR-01 | Accept one leaf image through the web interface and a public REST API. |
+| FR-01 | Capture or select one leaf image in the mobile app and submit it through the REST API; the intermediate web prototype can also validate this flow without blocking mobile development. |
 | FR-02 | Accept JPEG/PNG only, at most 5 MiB (5,242,880 bytes), decoded dimensions at most 20 megapixels. Enforce byte limits while reading, verify decoded content, reject corrupt, animated, or unsupported images. MIME/extension alone is insufficient. |
 | FR-03 | Apply EXIF orientation, convert to RGB, resize and normalize using artifact-declared transforms. Never use the client filename as a storage path; process in memory and discard images after the request. |
 | FR-04 | Run one versioned classifier and return crop, label, top candidates, scores, model version, and uncertainty state. Do not return fabricated predictions when the model is unavailable. |
 | FR-05 | Display scores with an explanation: model confidence is not necessarily calibrated probability, and a prediction is not a confirmed diagnosis. |
 | FR-06 | Display reviewed disease descriptions and general crop management guidance with source links, review dates, and applicable crop/region. No generated treatment advice or automatic pesticide recommendations. |
-| FR-07 | Clearly show loading, retryable errors, unsupported input, and uncertain results; provide accessible keyboard interaction and responsive layouts. |
+| FR-07 | Clearly show loading, retryable errors, unsupported input, and uncertain results; provide accessible mobile interaction, including camera/photo permission denial; the web prototype supports keyboard interaction and responsive layouts. |
 | FR-08 | Permit future prediction history without requiring persistence or accounts for MVP. |
-| FR-09 | Keep browser-independent REST contracts so future mobile clients use the same API. |
+| FR-09 | Keep client-independent REST contracts; FastAPI validates images and performs model inference for the Android app and web prototype. |
 
 ## Nonfunctional requirements
 
@@ -95,14 +100,15 @@ Do not claim unknown-input rejection until a separately evaluated method exists.
 
 ## REST API contract
 
-Only GET /health is implemented. Other endpoints below are proposals for Phase 1 onward.
+GET /health and the unavailable-only POST /api/v1/predictions contract are implemented.
+Other endpoints and prediction success below remain planned.
 FastAPI /docs and /openapi.json expose the implemented API, not the future contract.
 
 | Endpoint | Request | Response | Status |
 | --- | --- | --- | --- |
 | GET /health | None | `{"status":"ok"}` | Implemented; process liveness, HTTP 200 |
 | GET /api/v1/ready | None | `{"status":"ready","model_version":"…"}` | Planned; 503 if model unavailable |
-| POST /api/v1/predictions | multipart/form-data, required `image` binary, one file | PredictionResponse | Planned; 200 on success, no persistence |
+| POST /api/v1/predictions | multipart/form-data, required `image` binary, one file | UnavailableResponse now; PredictionResponse planned | Contract implemented; 503 only, no model or image validation; 200 remains planned |
 | GET /api/v1/diseases | optional `crop` string, `limit` 1–100 default 20, `offset` >=0 default 0 | `{"items":[Disease],"total":0}` | Planned; reviewed supported classes |
 | GET /api/v1/diseases/{disease_id} | stable disease slug | Disease | Planned; 404 if absent |
 | GET /api/v1/predictions | future authenticated, cursor-paginated history | Future contract | Deferred until ownership/retention design |
@@ -136,7 +142,15 @@ Use 400 for corrupt/invalid image, 413 for byte/pixel limits, 415 for unsupporte
 422 for missing/schema-invalid fields, 404 for unknown resources, 429 for rate limits,
 503 for unavailable inference, and 500 for unexpected failures. Keep messages safe and
 stable; never expose stack traces or local paths. Normalize FastAPI validation errors in
-the error-handling task; the foundation still uses default framework errors.
+P1-05; missing/schema-invalid fields still use default framework errors. The prediction
+503 uses this envelope with code inference_unavailable, a safe message, UUID request_id
+and empty details. No success payload or fabricated scores are returned.
+
+The P1-03 route and service do not read, decode, save or retain image content. FastAPI
+parses multipart before the handler and may spool uploads to temporary files, closed
+after the request; this is not a streaming byte/pixel limit or a no-disk guarantee.
+P1-04 must implement bounded validation, including duplicate/extra-file handling.
+Do not treat this contract as safe public upload processing.
 
 ## Database design
 
@@ -160,7 +174,8 @@ added explicitly and migrations tested on both. Do not assume identical database
 FastAPI/Pydantic provide typed validation and OpenAPI for web/mobile clients. SQLAlchemy
 and Alembic allow controlled persistence later. SQLite avoids a local service. PyTorch and
 Torchvision enable understandable transfer learning; Pillow handles decoding and scikit-learn
-evaluation. Next.js/TypeScript provide a typed web interface, Tailwind responsive styling.
+evaluation. Next.js/TypeScript and Tailwind support the intermediate web prototype.
+The mobile framework is undecided; it will consume the same FastAPI contract.
 uv and locks make environments reproducible; pytest/Ruff/ESLint and CI support feedback.
 One API process with in-process inference is affordable and sufficient initially; introduce
 queues or separate serving only after measured need. See docs/ARCHITECTURE.md for tradeoffs.
@@ -168,17 +183,19 @@ queues or separate serving only after measured need. See docs/ARCHITECTURE.md fo
 ## MVP acceptance criteria
 
 - All FR-01 through FR-07 and FR-09 demonstrated with real versioned weights on the documented
-  class set; FR-08 satisfied by keeping API/services independent of the web UI.
+  class set; FR-08 satisfied by keeping API/services independent of client UI.
 - Valid JPEG/PNG works end-to-end; boundary-size, corrupt, spoofed, oversized pixels,
   unsupported and missing-image cases have automated tests and correct errors.
-- UI has accessible upload, loading, success, uncertainty, and retryable error states;
-  usable at 375px and 1280px widths, with keyboard-only navigation.
+- Android UI has accessible capture/select, loading, success, uncertainty, and retryable
+  error states; permission denial, orientation and device interaction are verified.
+  Web prototype checks are intermediate evidence, not mobile MVP acceptance.
 - Reviewed descriptions and sources exist for every supported disease; no unsupported
   pesticide advice. Prediction and confidence limitations visible beside results.
 - Held-out macro F1 >= 0.80 on the selected dataset, per-class recall reported and
   any class below 0.60 investigated before release. If targets fail, reduce scope or
   improve the model; do not relabel poor results as acceptance. No field accuracy claim.
 - Reproducible split/artifact manifest and model card; latency target measured as specified.
-- CI passes lint, types, backend/inference contract tests and frontend build; at least one
-  real-artifact smoke test run separately. No secrets/data/weights in tracked files.
-- A fresh-clone local setup is verified; deployment belongs to Phase 5, after local MVP.
+- CI passes applicable mobile checks, backend/inference contract tests and existing web
+  prototype checks; at least one real-artifact smoke test run separately. No secrets/data/weights in tracked files.
+- A fresh-clone local setup is verified; backend deployment and Google Play release belong
+  to Phase 5, after local mobile MVP.

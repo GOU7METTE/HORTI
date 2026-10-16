@@ -3,15 +3,22 @@
 ## Components and status
 
 The repository is a monorepo: backend/app contains the FastAPI package, backend/tests its
-tests, frontend the Next.js app, and ml the future offline ML workflow. Only health and
-the static landing page run today. api, core, schemas, and services are small Python
+tests, frontend the Next.js app, and ml the future offline ML workflow. Health and
+the static landing page run today; POST /api/v1/predictions has a contract-only route
+that delegates to an injected unavailable service and returns a typed 503 envelope. api, core, schemas, and services are small Python
 packages with defined responsibilities. Add database models/repositories/migrations when
 persistence begins; do not create unused layers now.
 
+The final product is a mobile plant-health app, initially released on Android through
+Google Play. iOS support is a future decision; the mobile framework remains undecided.
+Next.js is an intermediate prototype for validating the prediction flow. Mobile development
+does not depend on a polished web application or web hosting. The anonymous mobile MVP
+captures/selects a leaf image and displays a prediction, uncertainty and reviewed information.
+
 ```mermaid
 flowchart LR
-    Web[Next.js web client] -->|planned REST /api/v1| API[FastAPI routes]
-    Mobile[Future mobile client] -->|same REST contract| API
+    Web[Next.js prototype] -->|planned REST /api/v1| API[FastAPI routes]
+    Mobile[Android app - planned] -->|same REST contract| API
     API --> Services[Validation and inference services - planned]
     Services --> Model[Versioned model artifact - planned]
     Services --> Content[Reviewed disease content - planned]
@@ -21,6 +28,12 @@ flowchart LR
     Evaluation --> Model
     Probe[Operational probe] -->|implemented GET /health| API
 ```
+
+The current prediction service always raises InferenceUnavailable. The route maps it to
+a 503 error with a UUID request ID; framework 422 errors remain unchanged until P1-05.
+The required UploadFile is not read or decoded by application code. Framework multipart
+parsing may spool to temporary files; P1-04 must add bounded validation before this is
+safe upload processing. No images are retained by the application.
 
 ## Request data flow (planned)
 
@@ -53,7 +66,7 @@ sequenceDiagram
 create_app accepts Settings for isolated tests; the default app loads root .env plus
 environment variables. No credentials or database connection is required. Empty CORS
 allowlist is the default; .env.example enables only the local frontend. CORS is a browser
-policy, not authentication. Add POST explicitly when the upload endpoint is implemented.
+policy, not authentication. GET and POST are explicitly allowed for the prototype flow.
 Production uses explicit settings, HTTPS, constrained ingress, and no development reload.
 
 ## Training and inference
@@ -70,21 +83,24 @@ memory; start with one worker and measure before scaling.
 ## Communication and persistence
 
 Use multipart upload then typed JSON over REST. No frontend framework types or cookies are
-required by the anonymous API, allowing a mobile client later. /health is operational and
-unversioned; business endpoints use /api/v1. Additive fields are compatible; breaking schemas
+required by the anonymous API, which serves both the prototype and mobile app. /health
+is operational and unversioned; business endpoints use /api/v1. Additive fields are compatible; breaking schemas
 require a new version. OpenAPI reflects only implemented endpoints.
 
 Reviewed disease information can start as versioned content. SQLite/SQLAlchemy/Alembic are
 the selected persistence path, but no tables or migration commands exist yet. PostgreSQL
 is a later choice for concurrent writes, with explicit driver and migration verification.
-User identity, history, retention and image storage require separate design and consent.
+Accounts, prediction history, Supabase and retained photos remain deferred; none is
+required for the anonymous MVP. Identity, retention and storage require separate design
+and consent before introduction.
 
 ## Deployment and tradeoffs
 
 - One API with in-process inference minimizes cost and operational complexity, but couples
   model memory/CPU to API scaling. Separate serving or queues require measured justification.
-- Separate frontend/API builds permit independent hosting, but introduce CORS and API URL
-  configuration. Future public frontend environment values must never contain secrets.
+- The web prototype and Android app use the same validation/inference API. Web hosting is
+  optional; Android release targets Google Play after local mobile acceptance and backend
+  hosting verification. Client API configuration must never contain secrets.
 - SQLite is easy locally, but has write concurrency limits. Portable models help migration,
   although PostgreSQL integration tests remain necessary.
 - A small crop set improves feasibility; controlled dataset metrics do not establish field

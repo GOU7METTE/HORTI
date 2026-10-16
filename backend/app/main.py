@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.health import router
+from app.api.health import router as health_router
+from app.api.predictions import router as predictions_router
 from app.core.config import Settings
 
 
@@ -12,10 +13,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         CORSMiddleware,
         allow_origins=config.cors_origins,
         allow_credentials=False,
-        allow_methods=["GET"],
+        allow_methods=["GET", "POST"],
         allow_headers=["Content-Type"],
     )
-    application.include_router(router)
+    application.include_router(health_router)
+    application.include_router(predictions_router)
     return application
 
 

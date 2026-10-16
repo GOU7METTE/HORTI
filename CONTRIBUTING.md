@@ -38,5 +38,13 @@ Review checklist:
 - UI changes preserve keyboard access and responsive behavior.
 - Dependency changes explain purpose and update locks; CI remains dataset/GPU independent.
 
-License choice is pending. Discuss contribution licensing before accepting outside code;
-public repository visibility does not grant an open-source license.
+## Licensing
+
+HORTI's original source code and documentation are provided under the
+[MIT License](LICENSE). Contributions intended for inclusion in the project must
+be compatible with that license. Contributors retain copyright in their own work.
+
+Only submit material you have permission to contribute, and preserve applicable
+third-party copyright, license, and attribution notices. Datasets, pretrained model
+weights, and other third-party assets have separate terms; do not assume that
+HORTI's MIT License permits their reuse or redistribution.
