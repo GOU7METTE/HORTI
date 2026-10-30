@@ -1,10 +1,12 @@
 from collections.abc import Callable, Iterator
+from io import BytesIO
 from unittest.mock import Mock
 from uuid import UUID
 
 import pytest
-from fastapi import FastAPI, UploadFile
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from app.core.config import Settings
 from app.services.predictions import (
@@ -28,21 +30,24 @@ def test_missing_image_does_not_call_service(client: TestClient) -> None:
     client.app.dependency_overrides[get_prediction_service] = lambda: service
     response = client.post("/api/v1/predictions")
     assert response.status_code == 422
-    assert response.json()["detail"][0]["loc"] == ["body", "image"]
+    assert "multipart image file" in response.json()["error"]["message"]
     service.predict.assert_not_called()
 
 
-def test_unavailable_inference_does_not_read_upload(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    read = Mock(side_effect=AssertionError("Application must not read the image"))
-    monkeypatch.setattr(UploadFile, "read", read)
+def synthetic_png() -> bytes:
+    with BytesIO() as output:
+        Image.new("RGB", (2, 2), "green").save(output, format="PNG")
+        return output.getvalue()
+
+
+def test_valid_image_receives_unavailable(client: TestClient) -> None:
     response = client.post(
-        "/api/v1/predictions", files={"image": ("synthetic.png", b"not an image", "image/png")}
+        "/api/v1/predictions", files={"image": ("synthetic.png", synthetic_png(), "image/png")}
     )
     assert response.status_code == 503
     body = response.json()
     assert UUID(body["error"]["request_id"])
+    assert body["error"]["request_id"] == response.headers["x-request-id"]
     assert body == {
         "error": {
             "code": "inference_unavailable",
@@ -51,33 +56,28 @@ def test_unavailable_inference_does_not_read_upload(
             "details": [],
         }
     }
-    read.assert_not_called()
 
 
-def test_route_delegates_to_service_and_closes_upload(client: TestClient) -> None:
+def test_route_delegates_validated_bytes_to_service(client: TestClient) -> None:
     service = Mock(spec=PredictionService)
     service.predict.side_effect = InferenceUnavailable
     client.app.dependency_overrides[get_prediction_service] = lambda: service
     response = client.post(
-        "/api/v1/predictions", files={"image": ("synthetic.png", b"synthetic", "image/png")}
+        "/api/v1/predictions", files={"image": ("synthetic.png", synthetic_png(), "image/png")}
     )
     assert response.status_code == 503
     service.predict.assert_called_once()
-    upload = service.predict.call_args.args[0]
-    assert upload.filename == "synthetic.png"
-    assert upload.content_type == "image/png"
-    assert upload.file.closed
+    assert service.predict.call_args.args == (synthetic_png(),)
 
 
 def test_openapi_documents_multipart_and_unavailable(client: TestClient) -> None:
     schema = client.get("/openapi.json").json()
     operation = schema["paths"]["/api/v1/predictions"]["post"]
     assert operation["requestBody"]["required"] is True
-    body_ref = operation["requestBody"]["content"]["multipart/form-data"]["schema"]["$ref"]
-    body_schema = schema["components"]["schemas"][body_ref.rsplit("/", 1)[1]]
+    body_schema = operation["requestBody"]["content"]["multipart/form-data"]["schema"]
     assert body_schema["required"] == ["image"]
-    assert body_schema["properties"]["image"]["type"] == "string"
-    assert body_schema["properties"]["image"]["contentMediaType"] == "application/octet-stream"
+    assert body_schema["additionalProperties"] is False
+    assert body_schema["properties"]["image"]["format"] == "binary"
     responses = operation["responses"]
     assert "200" not in responses
     assert responses["503"]["content"]["application/json"]["schema"] == {
@@ -88,14 +88,66 @@ def test_openapi_documents_multipart_and_unavailable(client: TestClient) -> None
 @pytest.mark.parametrize(
     "origin,allowed", [("http://localhost:3000", True), ("https://other.example", False)]
 )
-def test_post_cors(client: TestClient, origin: str, allowed: bool) -> None:
-    headers = {"Origin": origin, "Access-Control-Request-Method": "POST"}
+@pytest.mark.parametrize(
+    "case,status,code",
+    [
+        ("valid", 503, "inference_unavailable"),
+        ("corrupt", 400, "invalid_image"),
+        ("missing", 422, "validation_error"),
+        ("unexpected", 500, "internal_error"),
+    ],
+)
+def test_post_cors(
+    client: TestClient,
+    origin: str,
+    allowed: bool,
+    case: str,
+    status: int,
+    code: str,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    service = Mock(spec=PredictionService)
+    service.predict.side_effect = (
+        RuntimeError("private-service-error") if case == "unexpected" else InferenceUnavailable
+    )
+    client.app.dependency_overrides[get_prediction_service] = lambda: service
+    headers = {
+        "Origin": origin,
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "Content-Type",
+    }
     preflight = client.options("/api/v1/predictions", headers=headers)
     assert preflight.status_code == (200 if allowed else 400)
-    response = client.post(
-        "/api/v1/predictions",
-        headers={"Origin": origin},
-        files={"image": ("synthetic.png", b"synthetic", "image/png")},
-    )
-    assert response.status_code == 503
-    assert ("access-control-allow-origin" in response.headers) is allowed
+    assert UUID(preflight.headers["x-request-id"]).version == 4
+    data = b"private-corrupt-input" if case == "corrupt" else synthetic_png()
+    files = None if case == "missing" else {"image": ("private-filename.png", data, "image/png")}
+    response = client.post("/api/v1/predictions", headers={"Origin": origin}, files=files)
+    assert response.status_code == status
+    request_id = response.headers["x-request-id"]
+    assert UUID(request_id).version == 4
+    assert request_id != preflight.headers["x-request-id"]
+    body = response.json()
+    assert set(body) == {"error"}
+    assert set(body["error"]) == {"code", "message", "request_id", "details"}
+    assert body["error"]["request_id"] == request_id
+    assert body["error"]["code"] == code
+    assert body["error"]["details"] == []
+    records = [
+        record
+        for record in caplog.records
+        if record.name == "horti.errors" and request_id in record.getMessage()
+    ]
+    assert len(records) == 1
+    assert f"status={status}" in records[0].getMessage()
+    assert records[0].exc_info is None
+    assert "private" not in response.text + caplog.text
+    if allowed:
+        assert response.headers["access-control-allow-origin"] == origin
+        exposed = response.headers["access-control-expose-headers"].lower().split(", ")
+        assert "x-request-id" in exposed
+    else:
+        assert "access-control-allow-origin" not in response.headers
+    if case in {"valid", "unexpected"}:
+        service.predict.assert_called_once_with(data)
+    else:
+        service.predict.assert_not_called()

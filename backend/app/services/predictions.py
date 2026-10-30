@@ -1,15 +1,13 @@
 from typing import NoReturn
 
-from fastapi import UploadFile
-
 
 class InferenceUnavailable(Exception):
     """No model is available to make a prediction."""
 
 
 class PredictionService:
-    def predict(self, image: UploadFile) -> NoReturn:
-        """Contract placeholder: do not read, decode, or retain the upload."""
+    def predict(self, image: bytes) -> NoReturn:
+        """Validated image bytes are request-local; no model or retention exists."""
         raise InferenceUnavailable
 
 
