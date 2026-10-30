@@ -3,13 +3,23 @@
 ## Scope and status
 
 This document defines planned behavior unless explicitly described as implemented.
+HORTI is intended to have a possible production/commercial future as well as learning
+value. Release requires verified usability, accessibility, security, privacy, applicable
+artifact rights and model-quality acceptance; prototype checks alone do not establish readiness.
 The foundation implements GET /health, validated environment settings, an origin allowlist,
-tests, and a static frontend landing page. A contract-only POST /api/v1/predictions
-requires an image file and returns 503; image validation and inference are not implemented.
+tests, and a static frontend landing page. POST /api/v1/predictions implements bounded
+multipart ingestion and decoded JPEG/PNG validation; valid images return 503 because
+inference is not implemented.
 No model, database tables, accounts, history, or deployment exist. MVP scope: anonymous, single-image classification for a
 small documented crop/class set, with reviewed disease information. The final product is
 a mobile plant-health app; Android and Google Play are the initial release target. iOS
-support is a future decision and mobile framework selection remains open. Next.js is an
+release remains a future decision; iPhone Expo Go development/testing is supported by
+configuration, with scaffold launch confirmed by the owner on an iPhone; accessibility
+and layout checks remain pending. React Native with Expo and strict TypeScript is the
+selected mobile framework; local photo selection, still-camera capture, preview and
+explicit upload are implemented with mocked tests. Laptop health succeeds, but the owner
+reports iPhone browser health and native upload failures; real camera/upload and accessibility acceptance remain
+pending. Next.js is an
 intermediate prototype for validating the prediction flow, not the final product; a completed
 web prototype is not required before mobile development. Accounts, history, Supabase
 and retained photos remain deferred. Crop monitoring is a future goal, not an MVP capability.
@@ -24,7 +34,7 @@ and retained photos remain deferred. Crop monitoring is a future goal, not an MV
 | FR-04 | Run one versioned classifier and return crop, label, top candidates, scores, model version, and uncertainty state. Do not return fabricated predictions when the model is unavailable. |
 | FR-05 | Display scores with an explanation: model confidence is not necessarily calibrated probability, and a prediction is not a confirmed diagnosis. |
 | FR-06 | Display reviewed disease descriptions and general crop management guidance with source links, review dates, and applicable crop/region. No generated treatment advice or automatic pesticide recommendations. |
-| FR-07 | Clearly show loading, retryable errors, unsupported input, and uncertain results; provide accessible mobile interaction, including camera/photo permission denial; the web prototype supports keyboard interaction and responsive layouts. |
+| FR-07 | Clearly show loading, retryable errors, unsupported input, and uncertain results; validation errors use distinct dismissible feedback with text, not color alone. Provide accessible mobile interaction, including camera/photo permission denial; the web prototype supports keyboard interaction and responsive layouts. |
 | FR-08 | Permit future prediction history without requiring persistence or accounts for MVP. |
 | FR-09 | Keep client-independent REST contracts; FastAPI validates images and performs model inference for the Android app and web prototype. |
 
@@ -108,7 +118,7 @@ FastAPI /docs and /openapi.json expose the implemented API, not the future contr
 | --- | --- | --- | --- |
 | GET /health | None | `{"status":"ok"}` | Implemented; process liveness, HTTP 200 |
 | GET /api/v1/ready | None | `{"status":"ready","model_version":"…"}` | Planned; 503 if model unavailable |
-| POST /api/v1/predictions | multipart/form-data, required `image` binary, one file | UnavailableResponse now; PredictionResponse planned | Contract implemented; 503 only, no model or image validation; 200 remains planned |
+| POST /api/v1/predictions | multipart/form-data, required `image` binary, one file | UnavailableResponse now; PredictionResponse planned | Bounded image validation implemented; valid images return 503, no model; 200 remains planned |
 | GET /api/v1/diseases | optional `crop` string, `limit` 1–100 default 20, `offset` >=0 default 0 | `{"items":[Disease],"total":0}` | Planned; reviewed supported classes |
 | GET /api/v1/diseases/{disease_id} | stable disease slug | Disease | Planned; 404 if absent |
 | GET /api/v1/predictions | future authenticated, cursor-paginated history | Future contract | Deferred until ownership/retention design |
@@ -136,21 +146,47 @@ warnings list of strings. Scores rounded for presentation only. Disease: id, cro
 description, general_guidance, sources [{title,url,region,reviewed_at ISO date}]. Content
 requires review before being returned; missing content must be identified explicitly.
 
-Planned error envelope:
+Implemented error envelope:
 `{"error":{"code":"invalid_image","message":"Unable to decode image.","request_id":"UUID","details":[]}}`.
 Use 400 for corrupt/invalid image, 413 for byte/pixel limits, 415 for unsupported content,
 422 for missing/schema-invalid fields, 404 for unknown resources, 429 for rate limits,
 503 for unavailable inference, and 500 for unexpected failures. Keep messages safe and
-stable; never expose stack traces or local paths. Normalize FastAPI validation errors in
-P1-05; missing/schema-invalid fields still use default framework errors. The prediction
-503 uses this envelope with code inference_unavailable, a safe message, UUID request_id
-and empty details. No success payload or fabricated scores are returned.
+stable; never expose stack traces or local paths. P1-05 normalizes upload/domain,
+FastAPI request validation, routing/HTTP and unexpected failures. Error codes are
+invalid_image (400 upload rejection), bad_request (other 400), payload_too_large (413),
+unsupported_media_type (415), validation_error (422), not_found (404), method_not_allowed
+(405), rate_limited (429), inference_unavailable (503), internal_error (500),
+and http_error for other HTTP errors. Details are currently empty; validation inputs,
+locations, messages and context are omitted. Trusted upload messages remain specific.
+Every HTTP response carries a fresh server-generated UUID in X-Request-ID, also used in
+error.request_id and safe application error logs (ID/status only). Incoming IDs are ignored.
+Allowed browser origins can read X-Request-ID through CORS. CORS preflight responses
+retain the middleware's protocol response body, with a request ID header.
+No success payload or fabricated scores are returned.
 
-The P1-03 route and service do not read, decode, save or retain image content. FastAPI
-parses multipart before the handler and may spool uploads to temporary files, closed
-after the request; this is not a streaming byte/pixel limit or a no-disk guarantee.
-P1-04 must implement bounded validation, including duplicate/extra-file handling.
-Do not treat this contract as safe public upload processing.
+The P1-04 service consumes Request.stream() directly instead of FastAPI form parsing,
+so no UploadFile or temporary spool file is created for this endpoint. It enforces the
+5,242,880-byte file limit before buffering each file-data callback and rejects any second
+part (duplicate image, other file or ordinary field). Image bytes alone determine format;
+filename and declared MIME are not evidence of image type and never become storage paths.
+Pillow verifies structure, then reopens and fully decodes; dimensions are checked before
+pixel loading, and multiple frames are rejected. Model-specific transforms remain P2-04.
+
+Actual request-body bytes are counted before parser ingestion, independent of Content-Length.
+The body ceiling is 5,308,416 bytes (5 MiB file plus 65,536 bytes multipart overhead).
+Overhead is also checked while parsing and at completion for small files. Parser input is
+sliced into at most 64 KiB chunks. Content-Type is at most 256 characters; boundary is
+1-70 RFC multipart boundary bytes (no trailing space); part header names/values total at most 8 KiB. The locked parser
+also limits each header line to 4,224 bytes and each part to eight headers. Headers beyond
+these limits return 413. Duplicate headers, malformed or incomplete multipart return 400;
+missing multipart/file input returns 422. Overhead includes delimiters, headers and epilogue;
+an exact-size file must fit its multipart encoding within that separate overhead budget.
+
+Buffers are request-local and cleared on completion, rejection or disconnect; decoder
+buffers are closed. No uploads are retained. The ASGI server may already hold an incoming
+chunk before application checks run; these limits bound application consumption/parser
+buffering, not TCP/server/proxy buffering, aggregate concurrency or upload duration.
+Public deployment still needs ingress body limits, timeouts and rate/concurrency limits.
 
 ## Database design
 
@@ -175,7 +211,7 @@ FastAPI/Pydantic provide typed validation and OpenAPI for web/mobile clients. SQ
 and Alembic allow controlled persistence later. SQLite avoids a local service. PyTorch and
 Torchvision enable understandable transfer learning; Pillow handles decoding and scikit-learn
 evaluation. Next.js/TypeScript and Tailwind support the intermediate web prototype.
-The mobile framework is undecided; it will consume the same FastAPI contract.
+The React Native/Expo mobile app will consume the same FastAPI contract.
 uv and locks make environments reproducible; pytest/Ruff/ESLint and CI support feedback.
 One API process with in-process inference is affordable and sufficient initially; introduce
 queues or separate serving only after measured need. See docs/ARCHITECTURE.md for tradeoffs.

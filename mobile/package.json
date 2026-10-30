@@ -1,0 +1,43 @@
+{
+  "name": "horti-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.ts",
+  "packageManager": "npm@11.20.0",
+  "engines": {
+    "node": "^22.13.0 || ^24.3.0 || ^26.0.0"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "check:dependencies": "expo install --check",
+    "check:bundle": "npm run check:bundle:android && npm run check:bundle:ios",
+    "check": "npm run test && npm run lint && npm run typecheck && npm run check:dependencies && npm run check:bundle",
+    "preview:iphone": "expo start --go --lan",
+    "check:bundle:android": "expo export --platform android --output-dir dist/android",
+    "check:bundle:ios": "expo export --platform ios --output-dir dist/ios",
+    "test": "jest --runInBand"
+  },
+  "dependencies": {
+    "expo": "58.0.21",
+    "expo-file-system": "~58.0.13",
+    "expo-image-picker": "~58.0.10",
+    "expo-status-bar": "58.0.4",
+    "react": "19.3.0",
+    "react-native": "0.88.1",
+    "react-native-safe-area-context": "5.10.1"
+  },
+  "devDependencies": {
+    "@testing-library/react-native": "^13.3.3",
+    "@types/jest": "30.0.0",
+    "@types/react": "19.3.0",
+    "eslint": "9.39.5",
+    "eslint-config-expo": "58.0.4",
+    "jest": "~30.5.2",
+    "jest-expo": "~58.0.13",
+    "react-test-renderer": "^19.3.0",
+    "typescript": "6.0.3"
+  }
+}

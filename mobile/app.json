@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "HORTI",
+    "slug": "horti",
+    "version": "0.1.0",
+    "platforms": [
+      "android",
+      "ios"
+    ],
+    "orientation": "default",
+    "userInterfaceStyle": "light",
+    "extra": {
+      "eas": {
+        "projectId": "264e6efb-c0f6-4151-a73a-5ef0e69cb83c"
+      }
+    },
+    "owner": "horti",
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": false,
+          "cameraPermission": "Allow HORTI to take a leaf photo when you choose Take leaf photo.",
+          "microphonePermission": false
+        }
+      ]
+    ],
+    "android": {
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
+      ]
+    }
+  }
+}

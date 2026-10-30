@@ -6,9 +6,12 @@ behavior that actually differs by tool. Read scoped AGENTS.md files for director
 
 ## Context and objectives
 
-HORTI (Smart Agriculture) is an undergraduate portfolio project for learning software
-engineering, backend APIs, computer vision, testing, and deployment. Build incrementally
-and explain decisions. SPEC.md is the requirements source; TASKS.md is the implementation
+HORTI (Smart Agriculture) is a plant-health product in development with potential for
+production and commercial use, while also supporting learning and portfolio work.
+Treat user experience, reliability, privacy, security and model evidence as product
+quality requirements. Build incrementally, avoid speculative infrastructure, and do not
+claim production readiness before release acceptance is verified. Explain decisions.
+SPEC.md is the requirements source; TASKS.md is the implementation
 checklist; [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) is the single system design reference.
 The current priorities are validating the backend foundation, a safe upload contract,
 a reproducible ML baseline and an end-to-end MVP. Do not start subsequent tasks automatically.
@@ -21,7 +24,7 @@ TypeScript, Tailwind CSS. uv, pytest, Ruff, ESLint, GitHub Actions. See
 docs/ARCHITECTURE.md. HTTP routes delegate business logic to services. Offline training
 produces versioned artifacts; the API performs inference only. The final product is a mobile
 plant-health app, initially for Android and Google Play;
-iOS and the mobile framework remain undecided. Next.js is an intermediate prediction-flow
+iOS remains undecided; mobile uses React Native with Expo and strict TypeScript. Next.js is an intermediate prediction-flow
 prototype; web polish is not a prerequisite for mobile development. FastAPI will validate
 images and run inference through the same versioned REST API. Accounts, history, Supabase
 and retained photos remain deferred. No database or inference pipeline exists yet.
@@ -42,7 +45,8 @@ and retained photos remain deferred. No database or inference pipeline exists ye
 - Prefer simple solutions; keep business logic outside routes and avoid duplicated code.
 - Validate input at boundaries; configuration belongs in settings, never hardcoded secrets.
 - Keep dataset transforms consistent between training and inference.
-- Keep dependency declarations in backend/pyproject.toml and frontend/package.json;
+- Keep dependency declarations in backend/pyproject.toml, frontend/package.json and
+  mobile/package.json;
   update their locks with the package managers.
 - Never silently add major dependencies or modify unrelated code.
 - Never fabricate test results or claim unvalidated features work.

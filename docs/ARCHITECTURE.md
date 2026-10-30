@@ -3,14 +3,20 @@
 ## Components and status
 
 The repository is a monorepo: backend/app contains the FastAPI package, backend/tests its
-tests, frontend the Next.js app, and ml the future offline ML workflow. Health and
-the static landing page run today; POST /api/v1/predictions has a contract-only route
-that delegates to an injected unavailable service and returns a typed 503 envelope. api, core, schemas, and services are small Python
+tests, frontend the Next.js prototype, mobile the Expo Android app scaffold, and ml
+the future offline ML workflow. Health and
+the static landing page run today; POST /api/v1/predictions validates bounded JPEG/PNG
+uploads, delegates validated bytes to an unavailable service and returns a typed 503 envelope. api, core, schemas, and services are small Python
 packages with defined responsibilities. Add database models/repositories/migrations when
 persistence begins; do not create unused layers now.
 
 The final product is a mobile plant-health app, initially released on Android through
-Google Play. iOS support is a future decision; the mobile framework remains undecided.
+Google Play. The owner selected React Native with Expo and strict TypeScript on
+October 29, 2026. iPhone Expo Go development/testing is supported by configuration;
+an iOS/App Store release remains undecided. Android/Google Play remains the initial
+release target. The owner confirmed the informational screen opens on an iPhone 13 Pro
+Max running reported iOS 26.5 and Expo Go 58.0.5. Accessibility and layout checks remain
+pending; this preview does not verify native builds or Android behavior.
 Next.js is an intermediate prototype for validating the prediction flow. Mobile development
 does not depend on a polished web application or web hosting. The anonymous mobile MVP
 captures/selects a leaf image and displays a prediction, uncertainty and reviewed information.
@@ -18,7 +24,7 @@ captures/selects a leaf image and displays a prediction, uncertainty and reviewe
 ```mermaid
 flowchart LR
     Web[Next.js prototype] -->|planned REST /api/v1| API[FastAPI routes]
-    Mobile[Android app - planned] -->|same REST contract| API
+    Mobile[Expo mobile screen] -->|implemented explicit multipart upload| API
     API --> Services[Validation and inference services - planned]
     Services --> Model[Versioned model artifact - planned]
     Services --> Content[Reviewed disease content - planned]
@@ -29,11 +35,76 @@ flowchart LR
     Probe[Operational probe] -->|implemented GET /health| API
 ```
 
-The current prediction service always raises InferenceUnavailable. The route maps it to
-a 503 error with a UUID request ID; framework 422 errors remain unchanged until P1-05.
-The required UploadFile is not read or decoded by application code. Framework multipart
-parsing may spool to temporary files; P1-04 must add bounded validation before this is
-safe upload processing. No images are retained by the application.
+The current prediction service always raises InferenceUnavailable. Central handlers in
+core/errors translate domain, upload, request-validation and HTTP exceptions into the
+SPEC envelope. UnexpectedErrorMiddleware catches unexpected failures before headers are
+sent and returns a generic 500. It runs inside CORS, so allowed origins can read failures.
+RequestIdMiddleware wraps CORS, creates one UUID per HTTP request (ignoring supplied IDs),
+sets request.state.request_id and adds X-Request-ID even to preflight responses. CORS
+exposes that header. Error logs contain only request ID and status, without exception
+text, traces, paths, query strings, filenames or image/EXIF data. Validation details are
+empty to avoid reflecting submitted values. Already-started streaming responses cannot
+be replaced; no streaming endpoint or background task is currently implemented.
+A dependency delegates multipart consumption to
+services/image_upload; no File/UploadFile parameter triggers pre-handler form parsing.
+OpenAPI explicitly retains the required multipart image contract.
+
+The service counts actual ASGI body bytes before parser writes (maximum 5 MiB + 64 KiB),
+feeds slices of at most 64 KiB, and caps file-data callbacks at 5 MiB before extending a
+request-local bytearray. It rejects second parts, duplicate headers and incomplete bodies;
+limits overhead to 64 KiB even for small files; and bounds part headers to 8 KiB combined,
+with the locked parser's 4,224-byte header-line/eight-header limits. Content-Type and
+boundary lengths are bounded as described in SPEC.md. No temporary files are opened.
+Buffers clear in finally, including disconnects; no client filename becomes a storage path.
+
+Pillow checks actual JPEG/PNG format, <=20 million pixels and one frame, verifies the
+structure, then reopens and fully loads pixels to detect truncated data. Decoder contexts
+close before bytes reach inference; decoding runs in a worker thread. No resizing,
+normalization or model transforms are added here. ASGI/server input chunks and aggregate
+concurrent decoding need deployment-level memory/concurrency/time limits; application
+limits do not replace ingress protections. No images are retained.
+
+## Mobile framework decision and initial scaffold
+
+Use React Native with Expo and strict TypeScript in mobile/, with its own npm manifest
+and package-lock.json. This uses the developer's existing React/TypeScript experience
+and Expo's supported native tooling for the planned photo-selection flow. Kotlin/Compose
+would add a language and native Android learning curve; Flutter would add Dart and a new
+UI model. Both are viable, but Expo reduces the initial learning cost for this project.
+[React Native recommends a framework](https://reactnative.dev/docs/environment-setup);
+[Expo documents Windows development](https://docs.expo.dev/get-started/create-a-project/).
+This choice does not require finishing the Next.js prototype.
+
+The scaffold uses stable Expo SDK 58, the compatible React/React Native versions from
+its blank TypeScript template, safe-area handling and a single accessible informational
+screen. No router or state framework is needed for one screen. Text can scale, content
+scrolls, headings have accessibility roles and contrast is explicit. TalkBack, large-font
+layout and device behavior still require an actual Android run; static checks are not
+accessibility acceptance. Android and iOS JavaScript bundle exports verify packaging, not native launch.
+
+FastAPI remains the only inference host through the versioned multipart REST contract.
+The app uploads an image only after an explicit upload press. Camera access is checked
+or requested only after Take leaf photo; gallery selection does not request broad-library
+access. A development-only manual health check sends no photo. Prediction results,
+accounts, history, Supabase and retained photos are not implemented.
+No fabricated predictions are shown. Local single-photo preview is implemented below;
+the application does not add copies or delete user originals. Expo may cache picker files;
+clearing the in-memory selection is not a claim of immediate cache-file erasure.
+
+The owner linked EAS project `@horti/horti` (`264e6efb-c0f6-4151-a73a-5ef0e69cb83c`);
+the app config records this ID, owner `horti` and slug `horti`. No signing credentials,
+native build or deployment were configured by this link. Local
+build/device work needs an Android SDK/toolchain and device/emulator, which were not found
+in the inspected locations. JAVA_HOME/PATH JDK mismatch remains unchanged; choose a
+compatible toolchain explicitly when native builds are authorized. Expo Go may support a
+quick learning preview with a compatible client, but production-intended work should use
+a development build. iPhone Expo Go previews can be served over the local network from
+Windows without Xcode or a HORTI native build. They require a compatible iPhone/client
+and, under the current Expo policy, the same Expo account in CLI and Expo Go; sign-in
+is performed by the developer outside Git. The physical iPhone can test the shared screen
+but cannot establish Android runtime/TalkBack behavior. No Apple signing, cloud build,
+iOS simulator, tunnel or App Store release is authorized. mobile/README.md contains
+setup, checks and these runtime limitations.
 
 ## Request data flow (planned)
 
@@ -111,3 +182,111 @@ and consent before introduction.
 
 See SPEC.md for measurable limits, API schemas and ML evaluation policy; TASKS.md controls
 implementation order.
+
+### Mobile upload/error foundation and screen integration (October 29, 2026)
+
+`mobile/src/uploads.ts` implements one ephemeral URI-backed multipart `image` submission
+through explicit `expo/fetch` and a URI-backed Expo File, public `EXPO_PUBLIC_API_URL`, a 30-second timeout and
+abort support. `UploadPanel` provides explicit submit/cancel/retry, duplicate guards,
+selection/API-address keyed attempt lifetime and stale-response suppression. Errors use
+fixed client text; untrusted server messages/details are discarded, and only valid UUID
+request IDs are displayed. The current valid-image 503 is model unavailable; no success
+prediction UI is implemented. No image/body/URI logging, storage or automatic retry.
+
+App now mounts both selection and upload components. It owns a single SelectedPhoto
+and revision counter. Every accepted selection/removal increments that counter; the
+UploadPanel React key changes and its existing layout-effect cleanup aborts the previous
+attempt. This includes same-URI reselection. Cancelled/rejected picker results do not
+change the state or abort the current upload. No duplicate selection state or second
+network client was added. EAS identity/backend configuration are preserved. P6-06 and
+real-phone upload/accessibility acceptance remain open.
+
+### Local photo-selection prerequisite (October 29, 2026)
+
+`PhotoSelection` is mounted on the existing HORTI screen. A single in-memory
+`SelectedPhoto` stores URI and optional MIME/byte-size hints, structurally compatible
+with UploadPhoto. Selection has a synchronous in-flight guard; cancellation/errors or
+unsupported replacements retain the previous photo. Remove clears state only. The
+preview never uploads automatically; the separately mounted UploadPanel requires an
+explicit button press and a valid configured public API URL.
+
+Expo ImagePicker uses the system single-image flow without broad-library permission
+calls, editing, EXIF or base64. Current representation and quality=1 avoid requested
+transcoding. Known HEIC/other unsupported metadata and reported sizes >5 MiB get safe
+feedback; missing metadata stays explicitly unverified. Server decoded validation is
+authoritative. No filename/asset ID survives in state, and no extra file copy or delete
+is made. The SDK can cache selected files; clearing selection does not imply immediate
+cache erasure. Only local file/content URIs are previewed.
+
+Native config supplies a camera purpose string, disables microphone/photo descriptions and blocks
+unneeded broad Android storage/media permissions, preserving EAS identity. Expo Go's
+host manifest differs; real permission/accessibility behavior and device layout remain
+pending manual checks in mobile/README.md. P6-06 remains open.
+
+### Selection error feedback and product direction
+
+Selection/picker/preview failures now open a compact red modal card with an explicit
+error heading, safe message and Dismiss action. The dialog stays visible until dismissed,
+supports system back/accessibility escape, and preserves the previous selected photo.
+It uses React Native Modal with scrollable content, scalable text and safe-area spacing;
+screen-reader announcement and modal semantics are implemented, but native accessibility
+behavior remains unverified. Routine success/cancellation messages remain inline.
+The popup change added no dependency or upload integration. A later multipart fix
+declares the already-present SDK-compatible expo-file-system API directly.
+
+The owner intends HORTI as a potential production product, including possible commercial
+use, while retaining learning value. Usability and visual design require a dedicated
+mobile review before release, alongside existing accessibility, privacy/security,
+artifact-rights and model-evidence gates. This feedback change is not a full UI redesign
+or a production-readiness claim. Selection/upload integration is now implemented and
+tested with mocked boundaries. A real iPhone upload/503 and matching request ID are now
+evidenced; newer status-card/accessibility and race checks remain pending.
+
+### Native connection diagnosis and still-photo capture
+
+Initially health succeeded only on the laptop. After approved outside-sandbox API startup,
+the owner confirms iPhone Safari and native health work. A separate SDK58 multipart bug
+was then demonstrated: the default Expo fetch serializer rejects the older URI descriptor.
+Uploads now use explicit expo/fetch and a File referencing the existing selection, with
+no copy/write/conversion. Owner-reported request ID43089f0b-3aad-4bab-9962-0fe15b446186
+matches the phone POST/503 backend log, verifying this unavailable-model upload path.
+UploadPanel exposes a development-only, explicit health check with the
+validated configured service address. It has a bounded timeout and unmount cancellation,
+sends no image, returns fixed safe messages, and never runs automatically. Invalid URL
+backslashes or embedded whitespace are rejected rather than silently normalized. No CORS,
+ATS, firewall, network profile or tunnel change was made by this client fix. The
+owner-created scoped rule and sandbox protections were not altered. Device upload diagnosis remains open.
+
+Take leaf photo uses the existing ImagePicker native still-camera UI. A shared in-flight
+guard covers library, camera and permission prompts. Permissions are checked on action;
+denial preserves the current photo and offers gallery fallback or Settings guidance.
+Captured assets pass the same format/size checks and preview/upload revision path as
+gallery assets, including cancellation and same-URI replacement. Only explicit Upload
+sends the image; no continuous video or live inference is implemented. No microphone,
+broad library access, gallery save, app-level file copy or extra dependency was added.
+SDK camera/picker cache files can exist; clearing selection is not guaranteed cache erasure.
+Camera permission configuration affects future native builds; Expo Go uses its own host
+permissions. P6-07 remains incomplete until real-inference integration and device acceptance.
+
+### Upload interface states
+
+The upload boundary assigns a fixed typed feedback kind; server text is never used to
+choose UI or rendered. UploadStatus renders distinct loading/progress, model-unavailable,
+invalid-image, network, timeout, cancellation, malformed-response and other-service-error
+cards with recovery text and the existing validated request ID. It adds no new request
+or photo state. Retry/abort/selection-revision behavior remains in UploadPanel.
+
+UncertainPrediction is prepared and tested with synthetic fixtures only, not imported
+into the live unavailable-model screen. It has no fabricated label/score and cannot turn
+an error into an uncertain result. Future real inference integration must validate the
+SPEC uncertain flag and policy before mounting it. Device accessibility/layout still
+requires observation. No inference, reviewed-content API or release acceptance added.
+
+### Checkpoint acceptance limits (October 30, 2026)
+
+iPhone API connectivity remains unresolved as repeatable acceptance, despite the single
+correlated phone POST/503 recorded above. Preserve that measured result without treating
+it as validation of clean-session setup, repeated connectivity or race cases. Device
+camera and accessibility acceptance remain pending, as do Android runtime/native builds.
+Dependency audits are open and the current frontend build fails its Next.js security
+check. No release-readiness or completed P6-06/P6-07 claim follows from this checkpoint.
