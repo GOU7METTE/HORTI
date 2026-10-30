@@ -1,15 +1,21 @@
 # HORTI
 
-HORTI is a smart agriculture portfolio project exploring plant disease detection through
-computer vision, with crop monitoring as a future goal. It aims to turn a leaf photograph
-into a model prediction and useful, reviewed plant-health information.
+HORTI is a plant-health app in development, exploring disease detection through computer
+vision with a potential path to production and commercial use. It aims to turn a leaf
+photograph into a model prediction and useful, reviewed plant-health information.
+It also supports learning and portfolio work; current validation does not establish
+production readiness. Crop monitoring remains a future goal.
 
 > Currently in development: backend and frontend foundations are in place; disease prediction is planned.
 
 ## Overview
 
 The final product is a mobile plant-health app, initially targeting Android and Google Play.
-iOS support is a future decision; the mobile framework remains undecided. The existing
+iOS release remains a future decision; iPhone Expo Go preview/testing is configured,
+with scaffold launch confirmed by the owner on an iPhone; accessibility and layout
+checks remain pending. The Android app uses React Native with Expo and strict
+TypeScript; its screen supports local single-photo selection/camera capture, preview and explicit upload
+to the unavailable-model API. Real iPhone upload acceptance remains pending. The existing
 Next.js interface is an intermediate prototype for validating the prediction flow. A completed
 web prototype is not required before mobile development.
 
@@ -34,6 +40,13 @@ API design, testing, and deployment while working on a problem with personal mea
 
 ## Current Progress
 
+Checkpoint limitations (October 30, 2026): repeatable **iPhone API connectivity remains
+unresolved** for acceptance. One observed phone upload returned503 with a matching UUID;
+that isolated result is retained as evidence, not broad device acceptance. Device camera,
+VoiceOver/enlarged-text and layout/race acceptance remain pending. Audits remain open:
+frontend1 critical/4 high, mobile3 high/25 low. The current frontend build exits with a
+Next.js security error; this checkpoint is not release-ready. See docs/VALIDATION.md.
+
 ### Implemented
 
 - FastAPI application factory with a `GET /health` endpoint and generated API documentation.
@@ -41,26 +54,33 @@ API design, testing, and deployment while working on a problem with personal mea
 - Static Next.js landing page using strict TypeScript and Tailwind CSS.
 - Backend health/CORS test cases, dependency locks, and lint/type-check tooling.
 - GitHub Actions workflow definition for backend checks and frontend builds.
-- Contract-only multipart POST /api/v1/predictions with a required image file and honest
-  HTTP 503 response; image validation and model inference remain unimplemented.
+- Bounded multipart POST /api/v1/predictions: one decoded JPEG/PNG, at most 5 MiB
+  and 20 megapixels. Valid images receive HTTP 503 because no model exists.
+- Uniform API error envelopes, server-generated request IDs, and safe correlated error logs.
+- Expo HORTI screen with shared photo selection/preview, explicit upload and mocked screen tests;
+  the owner reported successful basic selection checks on iPhone. Accessibility,
+  real upload, the updated error popup and Android launch still need device checks. See [mobile setup](mobile/README.md).
 
 Frontend lint, type checks, and production build have been validated. The backend
-suite was independently verified on October 16, 2026: 11 tests passed, including
+suite was independently verified on October 29, 2026: 77 tests passed, including
 health, settings, OpenAPI, prediction-contract and CORS checks. GitHub backend and frontend
 CI passed for committed baseline `274d123`; pending changes still need a new CI run.
-Uvicorn startup remains unverified; see the [validation record](docs/VALIDATION.md).
+Local Uvicorn startup and real HTTP health/upload/error/CORS checks passed on October 29,
+2026; see the [validation record](docs/VALIDATION.md). Remote CI for the pending changes
+remains unverified.
 
 ### In Progress / Planned
 
-- Safe image uploads, validation, and shared training/inference preprocessing.
+- Shared training/inference preprocessing; deployment ingress limits and upload timeouts.
 - Dataset selection, a reproducible ML baseline, training, and held-out evaluation.
 - Model inference with class scores, uncertainty handling, and reviewed disease information.
 - Accessible upload/results screens and frontend-to-API integration.
 - End-to-end testing and deployment after the local MVP is complete.
 
 No dataset or model has been selected, and no prediction pipeline is implemented.
-The prediction contract does not decode or retain images in application code; framework
-multipart parsing may use temporary spool files. Bounded safe uploads remain P1-04.
+The image-validation service streams multipart directly into bounded memory without
+spooling or retention. The total body cap is 5 MiB plus 64 KiB multipart overhead;
+see SPEC.md for parser limits. Public deployment still needs ingress limits and timeouts.
 Accounts, prediction history, Supabase, retained photos, and crop monitoring remain deferred.
 Mobile development is part of the MVP path, following the shared API contract.
 
@@ -80,7 +100,7 @@ This flow is planned and does not yet work end to end.
 | --- | --- |
 | Backend | Python 3.12, FastAPI, Pydantic, Uvicorn |
 | Web prototype | Next.js App Router, React, strict TypeScript, Tailwind CSS |
-| Mobile (planned) | Android first; framework undecided; iOS decision deferred |
+| Mobile scaffold | React Native, Expo, strict TypeScript; Android first; iOS deferred |
 | Machine learning (planned) | PyTorch, Torchvision, Pillow, scikit-learn; optional ML dependencies declared |
 | Persistence (planned) | SQLAlchemy, Alembic, SQLite locally; PostgreSQL later |
 | Testing / tooling | pytest, Ruff, ESLint, uv, npm, GitHub Actions workflow |
@@ -112,6 +132,7 @@ are planned. See [Architecture](docs/ARCHITECTURE.md) for the full design.
 HORTI/
   backend/     FastAPI application and API tests
   frontend/    Intermediate Next.js web prototype
+  mobile/      Initial Expo Android scaffold; no prediction flow yet
   ml/          Workspace documentation for planned ML work
   docs/        Architecture and validation records
   scripts/     Foundation validation script
@@ -158,7 +179,8 @@ by execution policy.
 
 - [x] Create the backend/frontend scaffolds, dependency locks, and project documentation.
 - [x] Verify backend and frontend CI on GitHub for baseline `274d123`.
-- [ ] Verify Uvicorn startup and rerun CI for the pending changes.
+- [x] Verify local Uvicorn startup and HTTP health/upload/error/CORS behavior.
+- [ ] Rerun CI for the pending changes.
 - [ ] Implement safe uploads and train/evaluate a reproducible model baseline.
 - [ ] Connect inference, reviewed disease content, and an accessible results interface.
 - [ ] Build and verify the anonymous Android MVP using the shared API.
@@ -179,7 +201,7 @@ and acceptance criteria.
 
 ## Limitations / Disclaimer
 
-HORTI is an educational project. Predictions, once implemented, should not be treated as
+HORTI is in development. Predictions, once implemented, should not be treated as
 professional agricultural diagnoses. Confidence scores may be uncalibrated, and performance
 on curated datasets will not establish reliability in the field.
 

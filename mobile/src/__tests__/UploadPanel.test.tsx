@@ -1,0 +1,45 @@
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { UploadPanel } from '../UploadPanel';
+import { uploadPhoto, type UploadFeedback } from '../uploads';
+jest.mock('../uploads', () => ({ ...jest.requireActual('../uploads'), uploadPhoto: jest.fn() }));
+const upload = jest.mocked(uploadPhoto);
+const photo = { uri: 'file:///synthetic/leaf.png', mimeType: 'image/png' };
+beforeEach(() => upload.mockReset());
+test('missing selection and invalid configuration disable submission', () => {
+  const view = render(<UploadPanel photo={null} apiBaseUrl="http://test" />);
+  expect(screen.getByRole('button', { name: 'Upload leaf photo' })).toBeDisabled();
+  view.rerender(<UploadPanel photo={photo} apiBaseUrl="" />);
+  expect(screen.getByRole('button', { name: 'Upload leaf photo' })).toBeDisabled();
+  expect(screen.getByText(/service address is not configured correctly/)).toBeTruthy();
+  expect(upload).not.toHaveBeenCalled();
+});
+test('submission is explicit, duplicate taps guarded, loading and cancel accessible, retry allowed', async () => {
+  let finish!: (value: UploadFeedback) => void;
+  upload.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  render(<UploadPanel photo={photo} apiBaseUrl="http://test" />);
+  expect(upload).not.toHaveBeenCalled();
+  const button = screen.getByRole('button', { name: 'Upload leaf photo' });
+  act(() => { fireEvent.press(button); fireEvent.press(button); });
+  expect(upload).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole('button', { name: 'Uploading photo…' })).toBeDisabled();
+  fireEvent.press(screen.getByRole('button', { name: 'Cancel upload' }));
+  expect(upload.mock.calls[0]?.[2].aborted).toBe(true);
+  await act(async () => finish({ message: 'STALE RESULT' }));
+  expect(screen.queryByText('STALE RESULT')).toBeNull();
+  upload.mockResolvedValue({ message: 'The model is unavailable.', requestId: '0f48b750-a9d4-4c3c-8026-b32698e314f0' });
+  fireEvent.press(screen.getByRole('button', { name: 'Retry upload' }));
+  await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
+  expect(screen.getByText(/Request ID:/)).toBeTruthy();
+  expect(upload).toHaveBeenCalledTimes(2);
+});
+test.each(['replace', 'remove', 'unmount'])('%s aborts pending request and ignores its stale completion', async mode => {
+  let finish!: (value: UploadFeedback) => void;
+  upload.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  const view = render(<UploadPanel photo={photo} apiBaseUrl="http://test" />);
+  fireEvent.press(screen.getByRole('button', { name: 'Upload leaf photo' }));
+  if (mode === 'unmount') view.unmount();
+  else view.rerender(<UploadPanel photo={mode === 'remove' ? null : { uri: 'file:///synthetic/replacement.png' }} apiBaseUrl="http://test" />);
+  expect(upload.mock.calls[0]?.[2].aborted).toBe(true);
+  await act(async () => finish({ message: 'STALE RESULT' }));
+  if (mode !== 'unmount') expect(screen.queryByText('STALE RESULT')).toBeNull();
+});
