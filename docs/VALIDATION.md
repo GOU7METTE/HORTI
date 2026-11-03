@@ -1825,3 +1825,160 @@ No currently running API/Metro/firewall process/config is part of Git. This task
 stop a user's runtime session or remove owner test rules. Ownership will be released for
 handoff; exact commit IDs and push result reported in the session. Foundation and staged
 whitespace/forbidden-path checks are repeated after final documentation edits.
+
+## Focused frontend dependency remediation (November 3, 2026)
+
+Owner `codex-frontend-security-20261103`; branch `feat/backend-foundation`, current
+checkout; base/current HEAD `e04a6c50dd00c44a3f209518008c876124830c91`. Starting
+`git status --short` and `git diff --stat` were empty; branch/HEAD verified rather
+than assumed. Changes are uncommitted. Read root/frontend instructions, SPEC, TASKS,
+architecture, README, CONTRIBUTING and the latest branch checkpoint. Scope is frontend
+dependencies and evidence only. The appended camera/gallery/history request conflicts
+with the security-only/mobile-exclusion instructions; clarification was requested.
+No UI or retention behavior has been implemented in this remediation.
+
+### Current baseline and advisory evidence
+
+Environment: Node `v26.12.0`, npm `11.20.0`. Initial manifest requested Next/config
+`^16.0.0`, React/DOM `^19.2.0`; both lock and actual installation resolved Next/config
+`16.4.0`, React/DOM `19.3.0`. `npm.cmd --prefix frontend ls next react react-dom
+eslint-config-next` passed. Fresh `npm.cmd --prefix frontend audit --json` exited 1:
+**21 affected packages: 1 critical, 4 high, 16 moderate**, rather than the checkpoint's
+historical five. These are package counts, not distinct advisory counts.
+
+Runtime dependency path `horti-frontend -> next@16.4.0` had three advisories:
+
+- [GHSA-2464-fhr4-w9xw](https://github.com/vercel/next.js/security/advisories/GHSA-2464-fhr4-w9xw):
+  critical image-optimization RCE; affected Next 16.0.0 through 16.4.0; patched
+  16.4.1 (15.x patched at 15.5.28). Publisher identifies glibc Linux and recommends
+  sharp >=0.35.5. Existing sharp was already 0.35.5; patched Next requires ^0.35.5.
+- [GHSA-p3m5-59mp-jv5r](https://github.com/vercel/next.js/security/advisories/GHSA-p3m5-59mp-jv5r):
+  high App Router Server Actions DoS; affected Next 16.0.0 through 16.4.0;
+  patched 16.4.1 (15.x: 15.5.28). Requires a Server Action; current static page
+  defines none. Package-level upgrade remains appropriate.
+- [GHSA-673q-mjm6-r5xr](https://github.com/vercel/next.js/security/advisories/GHSA-673q-mjm6-r5xr):
+  critical typed-array `use cache` RCE; affected 16.0.0 through 16.4.0; patched
+  16.4.1. Current page defines no such function; publisher still recommends upgrading.
+
+Tooling-only paths, not application request validation:
+
+- `eslint-config-next@16.4.0 -> eslint-plugin-react-hooks@7.1.1 -> zod@4.6.5`,
+  also through `zod-validation-error@4.0.2`:
+  [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5), high,
+  affected <4.6.6, patched >=4.6.6. Four high package entries were propagation through
+  Zod, validation-error, Hooks plugin and Next lint config, not four separate advisories.
+  Publisher [4.6.6 release](https://github.com/colinhacks/zod/releases/tag/v4.6.6)
+  includes [size-bound fix](https://github.com/colinhacks/zod/commit/a0ebf97).
+- [GHSA-g3hv-75wg-m249](https://github.com/isaacs/minimatch/security/advisories/GHSA-g3hv-75wg-m249):
+  moderate glob amplification; audit affected <11.0.1, patched 11.0.1.
+  Installed minimatch 3.1.5 through ESLint 9.39.5 (direct and @eslint/config-array
+  0.21.2/@eslint/eslintrc 3.3.7), and eslint-config-next's import 2.32.0,
+  JSX accessibility 6.10.2 and React 7.37.5 plugins. Also minimatch 10.2.6 through
+  typescript-eslint 8.71.1 -> @typescript-eslint/typescript-estree 8.71.1.
+  The audit lists five installed minimatch nodes; 16 moderate package entries include
+  propagated lint dependencies. Parent ranges do not permit minimatch 11; no override,
+  forced peers or unrelated tooling major migration applied.
+- Original P0-11 [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)
+  was **withdrawn October 23, 2026** as not practically exploitable. It historically
+  affected braces <=3.0.3 with no patched release. Installed braces 3.0.3 remains through
+  @next/eslint-plugin-next -> fast-glob 3.3.1 -> micromatch 4.0.8. Its absence from this
+  audit is an upstream withdrawal, not a braces code fix. P0-11 stays open conservatively
+  because its full tooling audit acceptance is not satisfied; P0-10 is separate/open.
+
+### Selection and npm operations
+
+Selected **Next.js 16.4.1 and eslint-config-next 16.4.1**, exact manifest pins; React
+and React DOM remain **19.3.0**, with unchanged declared ranges. This is a patch within
+the existing major, not a migration. The publisher's
+[16.4.1 release](https://github.com/vercel/next.js/releases/tag/v16.4.1) lists all three
+Next fixes. Official React [RSC security notice](https://react.dev/blog/2025/12/03/critical-security-vulnerability-in-react-server-components)
+and [follow-up](https://react.dev/blog/2025/12/11/denial-of-service-and-source-code-exposure-in-react-server-components)
+were checked alongside the current [React release index](https://react.dev/blog).
+No current audit advisory targets installed react/react-dom 19.3.0.
+
+Published npm metadata checked with `npm.cmd view next@16.4.1 version peerDependencies
+dependencies --json`, `npm.cmd view next@16.4.1 optionalDependencies.sharp --json`,
+`npm.cmd view eslint-config-next@16.4.1 version peerDependencies --json`,
+`npm.cmd view eslint-config-next@16.4.1 dependencies --json`,
+`npm.cmd view react-dom@19.3.0 peerDependencies --json` and `npm.cmd view next dist-tags --json`.
+Next peers accept ^19.0.0 (also ^18.2.0); DOM 19.3.0 accepts React ^19.3.0;
+lint config accepts ESLint >=9 and TypeScript >=3.3.1. Latest Next tag was 16.4.4;
+16.4.1 was deliberately chosen as the smallest verified fix.
+
+Initial default-sandbox npm metadata requests failed EPERM writing the user npm cache.
+Normal require_escalated approval was used for metadata/install/ci; no protection changed.
+An initial `npm.cmd --prefix frontend install next@~16.4.1 eslint-config-next@~16.4.1
+--save-exact=false` resolved 16.4.4. Corrected with
+`npm.cmd --prefix frontend install --save-exact next@16.4.1 eslint-config-next@16.4.1`;
+final tree contains 16.4.1 only. No lockfile hand edits.
+
+`npm.cmd --prefix frontend update zod` changed only transitive Zod 4.6.5 to **4.6.7**,
+the compatible published patch selected by npm; verified `npm.cmd view zod@4.6.6
+version --json`, `npm.cmd view zod@4.6.7 version --json` and publisher
+[4.6.7 release](https://github.com/colinhacks/zod/releases/tag/v4.6.7).
+Hooks and validation-error both allow ^3.25.0 || ^4.0.0. No new direct dependency,
+speculative override, forced fix, SDK/framework downgrade or script approval.
+Final lock version changes are only Next/config/@next packages and Zod; sharp unchanged.
+
+### Verification
+
+Baseline `npm.cmd --prefix frontend run build` compiled/generated static pages then
+emitted SecurityFatalError for 16.4.0. Because a subsequent `npm ls` was in the same
+PowerShell command, the enclosing process exited 0; this does not make that build pass.
+No warning-dismissal retry or suppressed security check used.
+
+Final commands/results from repository root:
+
+- `npm.cmd --prefix frontend ci`: exit 0, 368 packages installed. Existing ESLint
+  9.39.5 end-of-support warning and unapproved unrs-resolver postinstall warning remain;
+  no script approval or ESLint migration in this task.
+- `npm.cmd --prefix frontend ls --all --json`: exit 0, no invalid dependency tree.
+  Focused `npm.cmd --prefix frontend ls next eslint-config-next react react-dom sharp zod`
+  confirms Next/config 16.4.1, React/DOM 19.3.0, sharp 0.35.5, Zod 4.6.7.
+- `npm.cmd --prefix frontend run lint`: exit 0.
+- `npm.cmd --prefix frontend run typecheck`: exit 0, generated route types and tsc passed.
+- `npm.cmd --prefix frontend run build`: exit 0, webpack compilation, types and static
+  routes `/` and `/_not-found` completed. No SecurityFatalError. Existing ignored
+  outside-repository pnpm-lock warning remains; no outside file/config modified.
+- `npm.cmd --prefix frontend audit --json`: exit 1, **18 moderate, zero high/critical**;
+  all remaining entries derive from the minimatch tooling advisory described above.
+  Install summaries temporarily reported different propagated counts; explicit final
+  full audit is authoritative. `npm.cmd --prefix frontend audit --omit=dev --json`:
+  exit 0, zero findings. This is dependency evidence, not a complete security review.
+- With `$env:UV_CACHE_DIR = Join-Path (Get-Location) '.cache/uv'`, ran
+  `uv run --project backend --locked --offline python scripts/check_foundation.py`:
+  passed. Repeated after final documentation edits, together with `git diff --check`.
+  An initial diff check found one added blank line at EOF; removed before final check.
+
+No application behavior changed, so no behavior tests added. Backend/mobile/ML code,
+personal settings, firewall and CI security controls unchanged. P0-10/P0-11 remain
+unchecked; original braces withdrawal is distinguished from remaining minimatch debt.
+No remote CI success, deployment, release readiness, commit, push or merge claimed.
+Ownership released at handoff. Next verification: run existing remote CI after a separately
+authorized commit/push, and review compatible upstream lint-tooling fixes in a separate task.
+
+### Focused commit review and remote verification (November 3, 2026)
+
+Owner `codex-security-publish-20261103`; current branch/checkout
+`feat/backend-foundation`, starting HEAD e04a6c50dd00c44a3f209518008c876124830c91.
+User authorizes review, focused commit/push on this branch and exact-SHA Actions checks.
+Initial status contained exactly the four remediation files. Reviewed all diffs,
+manifest/lock and installed package metadata: Next/config16.4.1, Zod4.6.7,
+React/DOM19.3.0. Only @next family/config/Next and Zod versions changed; sharp remains
+0.35.5 with the patched framework's tightened requirement. No unrelated upgrades.
+No dependency/source change since the successful local checks above, so those checks
+were not repeated. Foundation validation was repeated for documentation edits and passed.
+Production audit zero and full audit18 moderate remain distinct historical measured
+results; no new audit-clean claim. P0-10/P0-11 remain open.
+
+Default-sandbox `git ls-remote origin refs/heads/feat/backend-foundation` failed
+SEC_E_NO_CREDENTIALS; normal approved retry succeeded and confirmed remote e04a6c5,
+matching local base. No credential/config/security workaround. Existing workflow has
+backend and frontend jobs on push; no workflow/security-control changes. Previous
+base-commit CI success is not evidence for this remediation. New run pending push.
+
+Handoff clarification: future design work targets mobile and reuses existing camera,
+gallery and upload behavior. History, accounts, photo retention and Supabase stay
+deferred. No UI implementation or other task begun. Only explicit reviewed paths
+frontend/package.json, frontend/package-lock.json, TASKS.md and docs/VALIDATION.md
+are included; no personal settings, mobile work, secrets or generated artifacts.

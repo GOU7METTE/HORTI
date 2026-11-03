@@ -17,6 +17,8 @@ or completion; acceptance checkboxes above/below remain the shared completion re
 
 | Task | Session owner | Branch/worktree | File scope | Status | Date |
 | --- | --- | --- | --- | --- | --- |
+| Frontend remediation commit and CI verification | codex-security-publish-20261103 | feat/backend-foundation / current checkout; base e04a6c5 | frontend/package.json, frontend/package-lock.json, TASKS.md, docs/VALIDATION.md | Active; review, focused commit/push and exact-SHA GitHub Actions verification | 2026-11-03 |
+| Frontend dependency security/build remediation | codex-frontend-security-20261103 | feat/backend-foundation / current checkout; base e04a6c5 | frontend/package.json, frontend/package-lock.json, TASKS.md, docs/VALIDATION.md | Complete focused remediation; ownership released; Next/config16.4.1, Zod4.6.7; clean install/tree/lint/types/build pass; runtime audit0, full audit18 moderate; P0-10/P0-11 open | 2026-11-03 |
 | P0-08 remote evidence | codex-ci-evidence-20261016 | main / current checkout | TASKS.md, docs/VALIDATION.md, README.md, ROADMAP.md | Complete; ownership released; GitHub run and ruleset verified; documentation checks passed | 2026-10-16 |
 | P0-02 direction update | codex-mobile-docs-20261016 | main / current checkout | AGENTS.md, SPEC.md, TASKS.md, ROADMAP.md, README.md, docs/ARCHITECTURE.md | Complete; ownership released | 2026-10-16 |
 | P0-06 through P0-09 evidence review | codex-foundation-review-20261016 | main / current checkout | TASKS.md, README.md, CONTRIBUTING.md, docs/VALIDATION.md | Review complete; ownership released; P0-08 evidence pending | 2026-10-16 |
